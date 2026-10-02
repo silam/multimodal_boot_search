@@ -1,4 +1,5 @@
-Recommended structure (src layout)
+## Recommended structure (src layout)
+```
 boot01/
 ├── pyproject.toml          # deps, tooling config (uv/poetry + ruff + mypy + pytest)
 ├── .env.example            # never commit .env
@@ -27,3 +28,5 @@ boot01/
 │   ├── integration/        # real stores, recorded/stubbed LLM responses
 │   └── fixtures/
 └── scripts/                # one-off CLIs
+
+```

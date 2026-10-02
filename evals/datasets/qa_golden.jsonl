@@ -1,0 +1,6 @@
+{"question": "How many days do I have to return an item?", "expected_source": "returns.md", "must_contain": ["30 days"]}
+{"question": "How much does express shipping cost?", "expected_source": "shipping.md", "must_contain": ["$15"]}
+{"question": "Which countries do you ship to?", "expected_source": "shipping.md", "must_contain": ["Canada"]}
+{"question": "What does the warranty cover?", "expected_source": "warranty.md", "must_contain": ["defect"]}
+{"question": "How long until my refund arrives?", "expected_source": "returns.md", "must_contain": ["business days"]}
+{"question": "How do I file a warranty claim?", "expected_source": "warranty.md", "must_contain": ["order number"]}

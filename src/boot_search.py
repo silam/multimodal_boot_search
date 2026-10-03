@@ -22,19 +22,21 @@ import open_clip
 import torch
 from PIL import Image
 from openai import AsyncOpenAI
-
+from dotenv import load_dotenv
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance,
     Filter,
     FieldCondition,
     MatchValue,
-    NamedVector,
+    #NamedVector,
     PointStruct,
     VectorParams,
     PayloadSchemaType,
 )
 
+
+load_dotenv()   # Load environment variables from .env file
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIG
@@ -83,6 +85,9 @@ async def embed_text_openai(text: str) -> list[float]:
     Returns a 3072-dim normalized vector.
     Used for: feature/semantic text search (TEXT_VEC index).
     """
+
+    print("\n====================== embed text with OpenAI =======================\n")
+    print(f"Embedding text: {text}")
     response = await openai_client.embeddings.create(
         model="text-embedding-3-large",
         input=text,
@@ -96,6 +101,8 @@ def embed_image_clip(pil_image: Image.Image) -> list[float]:
     Returns a 768-dim L2-normalized vector.
     Used for: visual similarity search (IMAGE_VEC index).
     """
+
+    print("====================== embed image with CLIP =======================")
     tensor = preprocess(pil_image).unsqueeze(0).to(device)
     with torch.no_grad():
         vec = clip_model.encode_image(tensor)
@@ -109,6 +116,8 @@ def embed_text_clip(text: str) -> list[float]:
     Returns a 768-dim L2-normalized vector in the SAME space as embed_image_clip.
     Used for: multimodal fusion (MULTI_VEC index).
     """
+
+    print("====================== embed text with CLIP =======================")
     tokens = clip_tokenizer([text]).to(device)
     with torch.no_grad():
         vec = clip_model.encode_text(tokens)
@@ -127,6 +136,8 @@ def fuse_image_text_clip(
     Both vectors live in CLIP's joint embedding space, so weighted sum is valid.
     Returns a 768-dim L2-normalized vector.
     """
+
+    print("====================== fuse image and text =======================")
     iv = np.array(img_vec)
     tv = np.array(embed_text_clip(text))
     fused = alpha * iv + (1 - alpha) * tv
@@ -135,6 +146,7 @@ def fuse_image_text_clip(
 
 
 async def fetch_image_from_url(url: str, http: httpx.AsyncClient) -> Image.Image:
+    print("====================== fetch image from URL =======================")
     resp = await http.get(url, timeout=15.0)
     resp.raise_for_status()
     return Image.open(BytesIO(resp.content)).convert("RGB")
@@ -160,6 +172,8 @@ async def create_collection(qdrant: AsyncQdrantClient, recreate: bool = False):
           image_index, image_url, total_images  ← per-image metadata
       }
     """
+
+    print("====================== create collection =======================")
     existing = [c.name for c in (await qdrant.get_collections()).collections]
 
     if COLLECTION in existing:
@@ -221,6 +235,7 @@ async def ingest_boot(boot: dict, qdrant: AsyncQdrantClient):
 
     Point ID is deterministic — uuid5(sku::imgN) — so re-ingestion is idempotent.
     """
+    print("====================== ingest boot =======================")
     sku        = boot["sku"]
     image_urls = boot["image_urls"]
 
@@ -283,6 +298,7 @@ async def ingest_boot(boot: dict, qdrant: AsyncQdrantClient):
 
 async def ingest_catalog(catalog: list[dict], recreate: bool = False):
     """Ingest full boot catalog. Processes boots concurrently in batches of 5."""
+    print("====================== ingest catalog =======================")
     qdrant = AsyncQdrantClient(url=QDRANT_URL)
     await create_collection(qdrant, recreate=recreate)
 
@@ -313,6 +329,9 @@ def maxsim_aggregate(raw_results: list, top_n: int) -> list[dict]:
 
     Returns top_n boots sorted by score descending.
     """
+
+    print("====================== maxsim aggregate =======================")
+
     sku_best: dict[str, dict] = {}
 
     for point in raw_results:
@@ -345,6 +364,9 @@ def maxsim_aggregate(raw_results: list, top_n: int) -> list[dict]:
 
 def _build_filter(filters: Optional[dict]) -> Optional[Filter]:
     """Convert a plain dict like {"in_stock": True, "category": "work"} to a Qdrant Filter."""
+
+    print("====================== build filter start =======================")
+    
     if not filters:
         return None
     return Filter(must=[
@@ -457,6 +479,10 @@ async def search_by_image_and_text(
     Returns:
         List of boot dicts sorted by fused similarity score descending.
     """
+
+
+    print("====================== search by image and text =======================")
+
     qdrant = AsyncQdrantClient(url=QDRANT_URL)
 
     img_vec   = np.array(embed_image_clip(query_image))
@@ -494,6 +520,8 @@ async def api_search_text(
     category: Optional[str] = Form(None),
     in_stock: Optional[bool] = Form(None),
 ):
+
+    print("====================== api search text =======================")
     filters = {k: v for k, v in {"category": category, "in_stock": in_stock}.items() if v is not None}
     results = await search_by_text(query, top_n=top_n, filters=filters or None)
     return JSONResponse({"query": query, "results": results, "count": len(results)})
@@ -506,6 +534,9 @@ async def api_search_image(
     category: Optional[str] = Form(None),
     in_stock: Optional[bool] = Form(None),
 ):
+
+    print("====================== API Search Image =======================")
+
     pil     = Image.open(BytesIO(await image.read())).convert("RGB")
     filters = {k: v for k, v in {"category": category, "in_stock": in_stock}.items() if v is not None}
     results = await search_by_image(pil, top_n=top_n, filters=filters or None)
@@ -520,6 +551,8 @@ async def api_search_multimodal(
     top_n: int = Form(10),
     in_stock: Optional[bool] = Form(None),
 ):
+    print("====================== API Search Multimodal =======================")
+
     pil     = Image.open(BytesIO(await image.read())).convert("RGB")
     filters = {"in_stock": in_stock} if in_stock is not None else None
     results = await search_by_image_and_text(pil, text, top_n=top_n, alpha=alpha, filters=filters)
@@ -612,6 +645,8 @@ def print_results(label: str, results: list[dict]):
 
 
 async def main():
+
+    print("====================== MAIN RUNNING =======================")
     # ── 1. Ingest catalog ─────────────────────────────────────────────────
     print("=" * 60)
     print("  STEP 1: Ingest catalog")

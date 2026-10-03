@@ -242,8 +242,13 @@ async def ingest_boot(boot: dict, qdrant: AsyncQdrantClient):
     # ── Step 1: Build text string and embed ONCE per SKU ──────────────────
     # This same vector is stored on ALL image points for this SKU.
     text_str = (
-        f"{boot['model_name']}. "
-        f"{boot['description']} "
+        f"Sku: {boot['sku']}. "
+        f"Model Name: {boot['model_name']}. "
+        f"Category: {boot['category']}. "
+        f"Price (USD): {boot['price_usd']}. "
+        f"In Stock: {boot['in_stock']}. "
+        f"Color: {boot.get('color', '')}. "
+        f"Description: {boot['description']} "
         f"Features: {', '.join(boot['features'])}."
     )
     text_vec = await embed_text_openai(text_str)
